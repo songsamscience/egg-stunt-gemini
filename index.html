@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>에그 스턴트 가상실험실 (Egg Stunt Virtual Lab)</title>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* CSS 변수 설정 - 디자인 팔레트 */
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --bg: #f9fafb;
+            --card-bg: #ffffff;
+            --text-main: #111827;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --shadow: 0 4px 12px rgba(0,0,0,0.08);
+            --radius: 12px;
+        }
+
+        /* 기본 리셋 및 폰트 */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* 헤더 스타일 */
+        header {
+            background-color: var(--card-bg);
+            padding: 1rem 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        header h1 {
+            font-size: 1.5rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .social-links {
+            display: flex;
+            gap: 15px;
+        }
+        .social-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            transition: color 0.2s;
+        }
+        .social-links a:hover { color: var(--primary); }
+        .social-links svg { width: 24px; height: 24px; fill: currentColor; }
+
+        /* 탭 네비게이션 */
+        .tabs {
+            display: flex;
+            overflow-x: auto;
+            background: var(--card-bg);
+            padding: 0 2rem;
+            border-bottom: 1px solid var(--border);
+            scrollbar-width: none; /* Firefox */
+        }
+        .tabs::-webkit-scrollbar { display: none; } /* Chrome, Safari */
+        .tab-btn {
+            padding: 1rem 1.5rem;
+            border: none;
+            background: none;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            white-space: nowrap;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover { color: var(--primary); }
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        /* 메인 컨테이너 */
+        main {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .section-content {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+        .section-content.active { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 공통 레이아웃 (그리드) */
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+        @media (max-width: 768px) {
+            .grid-layout { grid-template-columns: 1fr; }
+            header { flex-direction: column; gap: 10px; text-align: center; }
+            .tabs { padding: 0 1rem; }
+            .tab-btn { padding: 0.8rem 1rem; font-size: 0.9rem; }
+        }
+
+        /* 카드 UI */
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+        }
+        .card h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--primary);
+        }
+
+        /* 슬라이더(Input Range) 스타일 */
+        .control-group { margin-bottom: 1.5rem; }
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        input[type=range] {
+            width: 100%;
+            accent-color: var(--primary);
+        }
+        .range-value {
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        /* 데이터 테이블 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+        th, td {
+            padding: 0.75rem;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+        th { background-color: var(--bg); font-weight: 600; }
+        tr.highlight {
+            background-color: rgba(37, 99, 235, 0.1);
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        /* 통계/결과 뱃지 */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .stat-box {
+            background: var(--bg);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+        .stat-label { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.3rem; }
+        .stat-value { font-size: 1.25rem; font-weight: 700; color: var(--text-main); }
+        .stat-unit { font-size: 0.8rem; font-weight: normal; color: var(--text-muted); }
+
+        /* 수식 박스 */
+        .formula-box {
+            background: #eff6ff;
+            border-left: 4px solid var(--primary);
+            padding: 1rem;
+            border-radius: 4px 8px 8px 4px;
+            font-family: 'Courier New', Courier, monospace;
+            margin-bottom: 1rem;
+        }
+
+        /* 차트 컨테이너 */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        /* 시뮬레이션 캔버스 영역 */
+        .simulation-area {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            background: linear-gradient(to bottom, #e0f2fe 0%, #bae6fd 80%, #a3e635 80%, #65a30d 100%);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
+        }
+        #simCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        /* 버튼 */
+        .btn-primary {
+            display: block;
+            width: 100%;
+            padding: 1rem;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            margin-top: 1.5rem;
+        }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-primary:active { transform: scale(0.98); }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+        .badge.safe { background-color: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .badge.danger { background-color: rgba(239, 68, 68, 0.2); color: var(--danger); }
+
+        /* 정보 카드 */
+        .info-card {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+        
+        #particles {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 헤더 -->
+    <header>
+        <h1>🥚 에그 스턴트 가상실험실</h1>
+        <div class="social-links">
+            <a href="https://www.youtube.com/@songsamscience" target="_blank" title="송쌤과학 유튜브">
+                <!-- YouTube Icon -->
+                <svg viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                <span style="margin-left:5px; font-size:0.9rem; font-weight:600;">송쌤과학</span>
+            </a>
+            <a href="https://www.instagram.com/songsamscience/" target="_blank" title="송쌤과학 인스타그램">
+                <!-- Instagram Icon -->
+                <svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+            </a>
+        </div>
+    </header>
+
+    <!-- 탭 네비게이션 -->
+    <nav class="tabs">
+        <button class="tab-btn active" onclick="switchTab('sec1', this)">1. 에너지 보존</button>
+        <button class="tab-btn" onclick="switchTab('sec2', this)">2. 운동량과 충격량</button>
+        <button class="tab-btn" onclick="switchTab('sec3', this)">3. 달걀 안전 분석</button>
+        <button class="tab-btn" onclick="switchTab('sec4', this)">4. 에그 스턴트 빌더 🚀</button>
+    </nav>
+
+    <main>
+        <!-- 섹션 1: 위치에너지 vs 운동에너지 -->
+        <section id="sec1" class="section-content active">
+            <div class="grid-layout">
+                <div class="card">
+                    <h2>🔋 위치에너지(PE) ↔ 운동에너지(KE)</h2>
+                    <div class="formula-box">
+                        <strong>PE = m·g·h</strong> (위치에너지)<br>
+                        <strong>KE = ½·m·v²</strong> (운동에너지)<br>
+                        역학적 에너지 보존: <strong>PE = KE</strong> (공기저항 무시)
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>
+                            <span>낙하 높이 (h)</span>
+                            <span class="range-value" id="val-h1">5 m</span>
+                        </label>
+                        <input type="range" id="slider-h1" min="1" max="10" step="1" value="5">
+                    </div>
+
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <div class="stat-label">달걀 질량 (m)</div>
+                            <div class="stat-value">0.06 <span class="stat-unit">kg (60g)</span></div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">에너지 크기 (PE=KE)</div>
+                            <div class="stat-value" id="out-energy1">2.94 <span class="stat-unit">J</span></div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">지면 충돌 속도 (v)</div>
+                            <div class="stat-value" id="out-vel1">9.90 <span class="stat-unit">m/s</span></div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card">
+                        💡 높이가 높아질수록 달걀이 가지는 <strong>위치에너지</strong>가 커지고, 이는 바닥에 닿기 직전 모두 <strong>운동에너지</strong>로 전환됩니다.
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>📊 에너지 변환 차트 및 표</h2>
+                    <div class="chart-container">
+                        <canvas id="chart-energy"></canvas>
+                    </div>
+                    <table id="table-energy">
+                        <thead>
+                            <tr>
+                                <th>높이 (m)</th>
+                                <th>위치에너지 (J)</th>
+                                <th>운동에너지 (J)</th>
+                                <th>속도 (m/s)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- JS로 동적 생성됨 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- 섹션 2: 운동량 vs 충격량 -->
+        <section id="sec2" class="section-content">
+            <div class="grid-layout">
+                <div class="card">
+                    <h2>⚡ 운동량(p)과 충격량(J)</h2>
+                    <div class="formula-box">
+                        <strong>운동량(p) = m·v</strong> (물체의 운동 정도)<br>
+                        <strong>충격량(J) = Δp = p_나중 - p_처음</strong><br>
+                        바닥에 부딪혀 멈출 때(v=0): <strong>|J| = |0 - m·v| = m·v</strong>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span>낙하 높이 (h)</span>
+                            <span class="range-value" id="val-h2">5 m</span>
+                        </label>
+                        <input type="range" id="slider-h2" min="1" max="10" step="1" value="5">
+                    </div>
+
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <div class="stat-label">낙하 시간 (t)</div>
+                            <div class="stat-value" id="out-time2">1.01 <span class="stat-unit">s</span></div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">충돌 직전 운동량 (p)</div>
+                            <div class="stat-value" id="out-mom2">0.59 <span class="stat-unit">kg·m/s</span></div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">바닥이 가한 충격량 (J)</div>
+                            <div class="stat-value" id="out-imp2">0.59 <span class="stat-unit">N·s</span></div>
+                        </div>
+                    </div>
+
+                    <div class="info-card">
+                        💡 <strong>운동량과 충격량의 크기는 같습니다!</strong><br>
+                        떨어지는 달걀이 가진 운동량을 0으로 만들기 위해, 바닥은 달걀의 운동량과 똑같은 크기의 충격량을 가해야 합니다.
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>📈 높이에 따른 운동량 변화</h2>
+                    <div class="chart-container">
+                        <canvas id="chart-momentum"></canvas>
+                    </div>
+                    <table id="table-momentum">
+                        <thead>
+                            <tr>
+                                <th>높이 (m)</th>
+                                <th>운동량 (kg·m/s)</th>
+                                <th>충격량 (N·s)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- JS 생성 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- 섹션 3: 달걀 안전 분석 -->
+        <section id="sec3" class="section-content">
+            <div class="grid-layout">
+                <div class="card">
+                    <h2>🛡️ 달걀 생존의 비밀: 충돌 시간</h2>
+                    <div class="formula-box">
+                        <strong>충격량(J) = 평균 충격력(F) × 충돌 시간(Δt)</strong><br>
+                        <strong>F = J / Δt</strong><br>
+                        * 달걀 파괴 한계력: <strong>25 N</strong> (이상이면 파손❌)
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span>낙하 높이 (h)</span>
+                            <span class="range-value" id="val-h3">5 m</span>
+                        </label>
+                        <input type="range" id="slider-h3" min="1" max="10" step="1" value="5">
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span>충돌 시간 (Δt) - 구조물의 푹신함</span>
+                            <span class="range-value" id="val-dt3">0.010 s</span>
+                        </label>
+                        <input type="range" id="slider-dt3" min="0.001" max="0.100" step="0.001" value="0.010">
+                    </div>
+
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <div class="stat-label">받는 충격량 (J)</div>
+                            <div class="stat-value" id="out-imp3">0.59 <span class="stat-unit">N·s</span></div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">발생 충격력 (F)</div>
+                            <div class="stat-value" id="out-force3">59.4 <span class="stat-unit">N</span></div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">안전 여부 (F < 25N)</div>
+                            <div id="badge-safe3" class="badge danger" style="margin-top:5px;">❌ 파손 (위험)</div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card">
+                        💡 <strong>충격량(J)이 일정할 때, 충돌 시간(Δt)을 길게 하면 충격력(F)이 작아집니다!</strong><br>
+                        자동차 에어백이나 스펀지가 푹신한 이유가 바로 이것입니다.
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>📉 충돌 시간에 따른 충격력 변화</h2>
+                    <div class="chart-container">
+                        <canvas id="chart-force"></canvas>
+                    </div>
+                    <p style="text-align:center; font-size:0.9rem; color:var(--text-muted); margin-top:10px;">
+                        빨간 점선(25N) 아래로 내려가야 달걀이 안전합니다.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 섹션 4: 에그 스턴트 빌더 -->
+        <section id="sec4" class="section-content">
+            <div class="grid-layout">
+                <div class="card">
+                    <h2>🛠️ 구조물 설계 & 실험</h2>
+                    <p style="font-size:0.9rem; margin-bottom:1rem; color:var(--text-muted);">
+                        빨대는 쿠션을 제공(최대 13cm 압축)하지만 질량을 늘리고, 나무젓가락은 질량만 늘립니다. 최적의 조합을 찾으세요!
+                    </p>
+                    
+                    <div class="control-group">
+                        <label>
+                            <span>🏢 낙하 높이 (1~10m)</span>
+                            <span class="range-value" id="val-h4">5 m</span>
+                        </label>
+                        <input type="range" id="slider-h4" min="1" max="10" step="1" value="5">
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span>🥤 빨대 개수 (개당 1g, 쿠션효과)</span>
+                            <span class="range-value" id="val-straw">10 개</span>
+                        </label>
+                        <input type="range" id="slider-straw" min="0" max="100" step="1" value="10">
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <span>🥢 나무젓가락 개수 (개당 4g, 강체)</span>
+                            <span class="range-value" id="val-chop">0 개</span>
+                        </label>
+                        <input type="range" id="slider-chop" min="0" max="30" step="1" value="0">
+                    </div>
+
+                    <div class="stat-grid" style="background:#f3f4f6; padding:10px; border-radius:8px;">
+                        <div class="stat-box" style="background:#fff;">
+                            <div class="stat-label">총 질량 (M)</div>
+                            <div class="stat-value" id="out-mass4">70 <span class="stat-unit">g</span></div>
+                        </div>
+                        <div class="stat-box" style="background:#fff;">
+                            <div class="stat-label">쿠션 거리 (d)</div>
+                            <div class="stat-value" id="out-dist4">13.0 <span class="stat-unit">cm</span></div>
+                        </div>
+                        <div class="stat-box" style="background:#fff;">
+                            <div class="stat-label">예상 충격력</div>
+                            <div class="stat-value" id="out-force4">26.4 <span class="stat-unit">N</span></div>
+                        </div>
+                    </div>
+
+                    <button class="btn-primary" id="btn-drop" onclick="startDrop()">🚀 낙하 실험 시작!</button>
+                    
+                    <div style="text-align:center; margin-top:1rem;">
+                        <span id="badge-result4" class="badge" style="font-size:1.1rem; padding:0.5rem 1rem;">대기 중...</span>
+                    </div>
+                </div>
+
+                <div class="card" style="padding:0; overflow:hidden; border:none; background:transparent; box-shadow:none;">
+                    <div class="simulation-area">
+                        <canvas id="simCanvas"></canvas>
+                        <div id="particles"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 스크립트: 물리 계산, 차트, 애니메이션, 사운드 -->
+    <script>
+        // ==========================================
+        // 1. 물리 상수 및 기본 설정
+        // ==========================================
+        const G = 9.8;           // 중력가속도 (m/s^2)
+        const M_EGG = 0.06;      // 달걀 질량 (kg) = 60g
+        const F_LIMIT = 25;      // 달걀 파괴 한계력 (N)
+        const M_STRAW = 0.001;   // 빨대 1개 질량 (kg) = 1g
+        const M_CHOP = 0.004;    // 젓가락 1개 질량 (kg) = 4g
+        const MAX_CUSHION = 0.13;// 빨대 최대 압축 거리 (m) = 13cm
+
+        // ==========================================
+        // 2. 탭 전환 로직
+        // ==========================================
+        function switchTab(tabId, btnElement) {
+            document.querySelectorAll('.section-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            btnElement.classList.add('active');
+            
+            // 탭 전환 시 차트 리렌더링 (크기 문제 방지)
+            if(tabId === 'sec1') chartEnergy.update();
+            if(tabId === 'sec2') chartMomentum.update();
+            if(tabId === 'sec3') { updateSection3(); chartForce.update(); }
+        }
+
+        // ==========================================
+        // 3. 물리 계산 함수들
+        // ==========================================
+        
+        // 에너지 계산
+        function calcEnergy(h, m = M_EGG) {
+            const pe = m * G * h;
+            const ke = pe; // 역학적 에너지 보존
+            const v = Math.sqrt(2 * G * h);
+            return { pe, ke, v };
+        }
+
+        // 운동량, 충격량 계산
+        function calcMomentum(h, m = M_EGG) {
+            const { v } = calcEnergy(h, m);
+            const p = m * v; 
+            const j = p; // 정지할 때까지의 충격량 크기
+            const t = Math.sqrt(2 * h / G); // 낙하 시간
+            return { p, j, t, v };
+        }
+
+        // 구조물 충격력 계산 (일-에너지 정리 기반: Mgh = F * d)
+        function calcStructurePhysics(h, straws, chops) {
+            const mTotal = M_EGG + (straws * M_STRAW) + (chops * M_CHOP);
+            
+            // 쿠션 거리 시뮬레이션: 빨대가 있을 경우 최대 13cm 제공, 없으면 달걀 자체 탄성(약 2mm)
+            // 빨대 개수에 따라 쿠션 효율이 달라진다고 가정 (빨대 5개 이상이어야 13cm 확보 가능)
+            let dActual = straws > 0 ? Math.min(MAX_CUSHION, straws * 0.026) : 0.002; 
+            
+            // 예상 평균 충격력: F = (M * g * h) / d
+            const force = (mTotal * G * h) / dActual;
+            const isSafe = force <= F_LIMIT;
+            
+            return { mTotal, dActual, force, isSafe };
+        }
+
+        // ==========================================
+        // 4. Chart.js 초기화 및 업데이트 함수
+        // ==========================================
+        let chartEnergy, chartMomentum, chartForce;
+
+        function initCharts() {
+            // 공통 차트 옵션
+            Chart.defaults.font.family = "'Pretendard', sans-serif";
+            Chart.defaults.color = '#6b7280';
+
+            // --- Chart 1: 에너지 (Bar) ---
+            const ctx1 = document.getElementById('chart-energy').getContext('2d');
+            chartEnergy = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: Array.from({length: 10}, (_, i) => `${i+1}m`),
+                    datasets: [
+                        { label: '위치/운동 에너지 (J)', data: [], backgroundColor: 'rgba(37, 99, 235, 0.7)', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, title: { display: true, text: '에너지 (J)' } } }
+                }
+            });
+
+            // --- Chart 2: 운동량 (Line) ---
+            const ctx2 = document.getElementById('chart-momentum').getContext('2d');
+            chartMomentum = new Chart(ctx2, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 10}, (_, i) => `${i+1}m`),
+                    datasets: [
+                        { label: '운동량 (kg·m/s) & 충격량 (N·s)', data: [], borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.3, borderWidth: 3, pointRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, title: { display: true, text: '운동량 / 충격량' } } }
+                }
+            });
+
+            // --- Chart 3: 충돌 시간에 따른 충격력 (Line) ---
+            const ctx3 = document.getElementById('chart-force').getContext('2d');
+            chartForce = new Chart(ctx3, {
+                type: 'line',
+                data: {
+                    labels: [], // 시간 데이터
+                    datasets: [
+                        { label: '발생 충격력 (N)', data: [], borderColor: '#ef4444', tension: 0.4, borderWidth: 2, pointRadius: 0 },
+                        { label: '안전 한계선 (25N)', data: [], borderColor: '#2563eb', borderDash: [5, 5], borderWidth: 2, pointRadius: 0, fill: false }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { 
+                        x: { title: { display: true, text: '충돌 시간 (s)' } },
+                        y: { beginAtZero: true, max: 100, title: { display: true, text: '충격력 (N)' } }
+                    },
+                    plugins: {
+                        annotation: { /* 어노테이션 플러그인 없이 기본 데이터셋으로 점선 처리 */ }
+                    }
+                }
+            });
+        }
+
+        // ==========================================
+        // 5. UI 업데이트 로직 (이벤트 리스너 연동)
+        // ==========================================
+
+        // 섹션 1 업데이트
+        function updateSection1() {
+            const h = parseFloat(document.getElementById('slider-h1').value);
+            document.getElementById('val-h1').innerText = `${h} m`;
+
+            const { pe, ke, v } = calcEnergy(h);
+            document.getElementById('out-energy1').innerText = pe.toFixed(2);
+            document.getElementById('out-vel1').innerText = v.toFixed(2);
+
+            // 차트 데이터 갱신
+            const dataArr = [];
+            let tbody = '';
+            for(let i=1; i<=10; i++) {
+                const res = calcEnergy(i);
+                dataArr.push(res.pe);
+                const isHighlight = (i === h) ? 'class="highlight"' : '';
+                tbody += `<tr ${isHighlight}><td>${i}</td><td>${res.pe.toFixed(2)}</td><td>${res.ke.toFixed(2)}</td><td>${res.v.toFixed(2)}</td></tr>`;
+            }
+            chartEnergy.data.datasets[0].data = dataArr;
+            chartEnergy.update();
+            document.querySelector('#table-energy tbody').innerHTML = tbody;
+        }
+
+        // 섹션 2 업데이트
+        function updateSection2() {
+            const h = parseFloat(document.getElementById('slider-h2').value);
+            document.getElementById('val-h2').innerText = `${h} m`;
+
+            const { p, j, t } = calcMomentum(h);
+            document.getElementById('out-time2').innerText = t.toFixed(2);
+            document.getElementById('out-mom2').innerText = p.toFixed(2);
+            document.getElementById('out-imp2').innerText = j.toFixed(2);
+
+            const dataArr = [];
+            let tbody = '';
+            for(let i=1; i<=10; i++) {
+                const res = calcMomentum(i);
+                dataArr.push(res.p);
+                const isHighlight = (i === h) ? 'class="highlight"' : '';
+                tbody += `<tr ${isHighlight}><td>${i}</td><td>${res.p.toFixed(3)}</td><td>${res.j.toFixed(3)}</td></tr>`;
+            }
+            chartMomentum.data.datasets[0].data = dataArr;
+            chartMomentum.update();
+            document.querySelector('#table-momentum tbody').innerHTML = tbody;
+        }
+
+        // 섹션 3 업데이트
+        function updateSection3() {
+            const h = parseFloat(document.getElementById('slider-h3').value);
+            const dt = parseFloat(document.getElementById('slider-dt3').value);
+            
+            document.getElementById('val-h3').innerText = `${h} m`;
+            document.getElementById('val-dt3').innerText = `${dt.toFixed(3)} s`;
+
+            const { j } = calcMomentum(h);
+            const force = j / dt;
+
+            document.getElementById('out-imp3').innerText = j.toFixed(2);
+            document.getElementById('out-force3').innerText = force.toFixed(1);
+
+            const badge = document.getElementById('badge-safe3');
+            if (force < F_LIMIT) {
+                badge.className = 'badge safe';
+                badge.innerText = '✅ 안전 (생존)';
+            } else {
+                badge.className = 'badge danger';
+                badge.innerText = '❌ 파손 (위험)';
+            }
+
+            // 차트 곡선 그리기 (h 고정, dt 변화)
+            const dtLabels = [];
+            const forceData = [];
+            const limitData = [];
+            for(let t = 0.005; t <= 0.1; t += 0.005) {
+                dtLabels.push(t.toFixed(3));
+                forceData.push(j / t);
+                limitData.push(F_LIMIT);
+            }
+            chartForce.data.labels = dtLabels;
+            chartForce.data.datasets[0].data = forceData;
+            chartForce.data.datasets[1].data = limitData;
+            chartForce.update();
+        }
+
+        // 섹션 4 빌더 업데이트
+        function updateSection4() {
+            const h = parseInt(document.getElementById('slider-h4').value);
+            const straws = parseInt(document.getElementById('slider-straw').value);
+            const chops = parseInt(document.getElementById('slider-chop').value);
+
+            document.getElementById('val-h4').innerText = `${h} m`;
+            document.getElementById('val-straw').innerText = `${straws} 개`;
+            document.getElementById('val-chop').innerText = `${chops} 개`;
+
+            const res = calcStructurePhysics(h, straws, chops);
+            
+            document.getElementById('out-mass4').innerText = (res.mTotal * 1000).toFixed(0); // g
+            document.getElementById('out-dist4').innerText = (res.dActual * 100).toFixed(1); // cm
+            document.getElementById('out-force4').innerText = res.force.toFixed(1);
+
+            const badge = document.getElementById('badge-result4');
+            if (res.isSafe) {
+                badge.className = 'badge safe';
+                badge.innerText = '✅ 예상 결과: 안전 (생존 확률 높음)';
+            } else {
+                badge.className = 'badge danger';
+                badge.innerText = '❌ 예상 결과: 파손 (충격력 한계 초과)';
+            }
+        }
+
+        // 슬라이더 이벤트 연결
+        document.getElementById('slider-h1').addEventListener('input', updateSection1);
+        document.getElementById('slider-h2').addEventListener('input', updateSection2);
+        document.getElementById('slider-h3').addEventListener('input', updateSection3);
+        document.getElementById('slider-dt3').addEventListener('input', updateSection3);
+        document.getElementById('slider-h4').addEventListener('input', updateSection4);
+        document.getElementById('slider-straw').addEventListener('input', updateSection4);
+        document.getElementById('slider-chop').addEventListener('input', updateSection4);
+
+        // ==========================================
+        // 6. Web Audio API (사운드 합성)
+        // ==========================================
+        let actx = null;
+
+        function initAudio() {
+            if (!actx) {
+                actx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (actx.state === 'suspended') actx.resume();
+        }
+
+        function playNoiseFall(duration) {
+            initAudio();
+            const bufferSize = actx.sampleRate * duration;
+            const buffer = actx.createBuffer(1, bufferSize, actx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+            
+            const noise = actx.createBufferSource();
+            noise.buffer = buffer;
+            
+            // 바람소리 느낌 필터
+            const filter = actx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(100, actx.currentTime);
+            filter.frequency.linearRampToValueAtTime(1000, actx.currentTime + duration);
+            
+            const gain = actx.createGain();
+            gain.gain.setValueAtTime(0, actx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.5, actx.currentTime + duration * 0.8);
+            gain.gain.linearRampToValueAtTime(0, actx.currentTime + duration);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(actx.destination);
+            noise.start();
+        }
+
+        function playImpact(isSafe) {
+            initAudio();
+            const t = actx.currentTime;
+            
+            // Thud sound (저음 임팩트)
+            const osc = actx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(150, t);
+            osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.5);
+            
+            const gain = actx.createGain();
+            gain.gain.setValueAtTime(1, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+            
+            osc.connect(gain);
+            gain.connect(actx.destination);
+            osc.start(t);
+            osc.stop(t + 0.5);
+
+            if (!isSafe) {
+                // 파직! 하는 크랙 노이즈
+                const bufferSize = actx.sampleRate * 0.2;
+                const buffer = actx.createBuffer(1, bufferSize, actx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                
+                const noise = actx.createBufferSource();
+                noise.buffer = buffer;
+                
+                const hpFilter = actx.createBiquadFilter();
+                hpFilter.type = 'highpass';
+                hpFilter.frequency.value = 2000;
+                
+                const nGain = actx.createGain();
+                nGain.gain.setValueAtTime(1, t);
+                nGain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+                
+                noise.connect(hpFilter);
+                hpFilter.connect(nGain);
+                nGain.connect(actx.destination);
+                noise.start(t);
+            } else {
+                // 성공 빵빠레 (조금 딜레이 후)
+                setTimeout(playFanfare, 300);
+            }
+        }
+
+        function playTone(freq, time, dur) {
+            const osc = actx.createOscillator();
+            osc.type = 'triangle';
+            osc.frequency.value = freq;
+            
+            const gain = actx.createGain();
+            gain.gain.setValueAtTime(0, time);
+            gain.gain.linearRampToValueAtTime(0.3, time + 0.05);
+            gain.gain.linearRampToValueAtTime(0, time + dur);
+            
+            osc.connect(gain);
+            gain.connect(actx.destination);
+            osc.start(time);
+            osc.stop(time + dur);
+        }
+
+        function playFanfare() {
+            initAudio();
+            const t = actx.currentTime;
+            // C4, E4, G4, C5 (도, 미, 솔, 도)
+            playTone(261.63, t, 0.15);
+            playTone(329.63, t + 0.15, 0.15);
+            playTone(392.00, t + 0.30, 0.15);
+            playTone(523.25, t + 0.45, 0.4);
+        }
+
+        // ==========================================
+        // 7. Canvas 애니메이션 (섹션 4)
+        // ==========================================
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        let animFrame;
+        let isAnimating = false;
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            drawInitialScene();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function drawBackground() {
+            // 하늘, 구름, 땅
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 바닥 (잔디 느낌)
+            ctx.fillStyle = '#4d7c0f';
+            ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
+            
+            // 눈금자 (높이 표시)
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(40, 0, 5, canvas.height - 40);
+            ctx.font = '12px Arial';
+            ctx.fillStyle = '#333';
+            const h = parseInt(document.getElementById('slider-h4').value);
+            for(let i=0; i<=h; i++) {
+                const y = 20 + (canvas.height - 60) * (1 - i/h);
+                ctx.fillRect(35, y, 15, 2);
+                if(i > 0) ctx.fillText(i + 'm', 10, y + 4);
+            }
+        }
+
+        function drawEggStructure(x, y, straws, chops) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // 구조물 최대 크기(반경) 계산
+            let maxRadius = 25; 
+            if (straws > 0) {
+                const strawSides = Math.max(3, Math.min(straws, 8)); 
+                const layers = Math.ceil(straws / strawSides);
+                maxRadius = 18 + layers * 7;
+            }
+
+            // 1. 나무젓가락 (갈색 막대) - 구조물 내부의 단단한 방사형 지지대(뼈대) 역할
+            if (chops > 0) {
+                ctx.strokeStyle = '#8B4513';
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                
+                for (let i = 0; i < chops; i++) {
+                    const angle = (Math.PI * 2 / chops) * i + (Math.PI / chops); // 각도 분산
+                    ctx.beginPath();
+                    // 달걀 부근에서 시작해 바깥쪽 빨대 구조물까지 또는 그 이상 뻗어나감
+                    ctx.moveTo(Math.cos(angle) * 12, Math.sin(angle) * 12);
+                    ctx.lineTo(Math.cos(angle) * (maxRadius + 8), Math.sin(angle) * (maxRadius + 8));
+                    ctx.stroke();
+                }
+            }
+
+            // 2. 빨대 (파란색 선) - 달걀을 감싸는 내부 다각형 그물망 (충격 흡수재)
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.7)';
+            ctx.lineWidth = 2;
+            if (straws > 0) {
+                const strawSides = Math.max(3, Math.min(straws, 8)); 
+                const layers = Math.ceil(straws / strawSides);
+                
+                for (let l = 1; l <= layers; l++) {
+                    const currentRadius = 18 + l * 7; // 달걀 표면부터 겹겹이 층을 형성
+                    
+                    // 다각형 그리기
+                    ctx.beginPath();
+                    for (let i = 0; i <= strawSides; i++) {
+                        const angle = (Math.PI * 2 / strawSides) * i - Math.PI / 2;
+                        const px = Math.cos(angle) * currentRadius;
+                        const py = Math.sin(angle) * currentRadius;
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.stroke();
+                    
+                    // 각 꼭짓점을 중심(달걀) 방향으로 연결 (지지대)
+                    for (let i = 0; i < strawSides; i++) {
+                         const angle = (Math.PI * 2 / strawSides) * i - Math.PI / 2;
+                         ctx.beginPath();
+                         // 달걀 표면 근처에서 시작
+                         ctx.moveTo(Math.cos(angle) * 12, Math.sin(angle) * 16); 
+                         ctx.lineTo(Math.cos(angle) * currentRadius, Math.sin(angle) * currentRadius);
+                         ctx.stroke();
+                    }
+                }
+            }
+
+            // 3. 달걀 (흰색 타원) - 뼈대와 빨대망 중앙에 안전하게 배치
+            ctx.fillStyle = '#fff9e6';
+            ctx.shadowColor = 'rgba(0,0,0,0.2)';
+            ctx.shadowBlur = 5;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 14, 18, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 달걀 테두리
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#d1d5db';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawInitialScene() {
+            if(isAnimating) return;
+            drawBackground();
+            const straws = parseInt(document.getElementById('slider-straw').value);
+            const chops = parseInt(document.getElementById('slider-chop').value);
+            drawEggStructure(canvas.width / 2, 20, straws, chops); // 꼭대기 대기
+        }
+
+        // 파티클 시스템 (DOM 기반)
+        function createParticles(isSafe) {
+            const container = document.getElementById('particles');
+            container.innerHTML = '';
+            for(let i=0; i<30; i++) {
+                const p = document.createElement('div');
+                p.style.position = 'absolute';
+                p.style.bottom = '40px';
+                p.style.left = '50%';
+                p.style.width = isSafe ? '8px' : '15px';
+                p.style.height = isSafe ? '8px' : '15px';
+                
+                if (isSafe) {
+                    // 색종이 (성공)
+                    const colors = ['#f87171', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa'];
+                    p.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    p.style.borderRadius = '2px';
+                } else {
+                    // 계란 파편 (실패)
+                    p.style.backgroundColor = Math.random() > 0.3 ? '#fff9e6' : '#facc15'; // 흰자, 노른자 색
+                    p.style.borderRadius = '50%';
+                }
+
+                const tx = (Math.random() - 0.5) * 200;
+                const ty = -Math.random() * 150 - 50;
+                
+                p.animate([
+                    { transform: 'translate(-50%, 0) scale(1)', opacity: 1 },
+                    { transform: `translate(calc(-50% + ${tx}px), ${ty}px) scale(0.5)`, opacity: 0 }
+                ], {
+                    duration: 800 + Math.random() * 400,
+                    easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+                    fill: 'forwards'
+                });
+                container.appendChild(p);
+            }
+        }
+
+        function startDrop() {
+            if (isAnimating) return;
+            isAnimating = true;
+            document.getElementById('btn-drop').disabled = true;
+            document.getElementById('particles').innerHTML = ''; // 파티클 초기화
+
+            initAudio();
+            
+            const h = parseInt(document.getElementById('slider-h4').value);
+            const straws = parseInt(document.getElementById('slider-straw').value);
+            const chops = parseInt(document.getElementById('slider-chop').value);
+            
+            const physicsRes = calcStructurePhysics(h, straws, chops);
+            const fallTime = Math.sqrt(2 * h / G); // 실제 물리 낙하 시간
+            
+            // 애니메이션 시간 스케일링 (너무 빠르거나 느리지 않게 조절)
+            const animDuration = Math.max(0.8, fallTime * 0.5) * 1000; // ms
+            
+            playNoiseFall(animDuration / 1000);
+
+            const startY = 20;
+            const endY = canvas.height - 40 - 18; // 바닥 높이 - 달걀 반경
+            const startMs = performance.now();
+
+            function step(timestamp) {
+                const elapsed = timestamp - startMs;
+                let progress = elapsed / animDuration; // 0 to 1
+                
+                if (progress >= 1) progress = 1;
+                
+                // 가속도 운동 (y = 1/2 gt^2 처럼 2차 곡선 사용)
+                // ease-in quadratic 곡선: t^2
+                const currentY = startY + (endY - startY) * (progress * progress);
+                
+                drawBackground();
+                drawEggStructure(canvas.width / 2, currentY, straws, chops);
+                
+                if (progress < 1) {
+                    animFrame = requestAnimationFrame(step);
+                } else {
+                    // 충돌 완료
+                    isAnimating = false;
+                    document.getElementById('btn-drop').disabled = false;
+                    
+                    // 화면 흔들림 효과
+                    canvas.style.transform = 'translateY(10px)';
+                    setTimeout(() => canvas.style.transform = 'translateY(-5px)', 50);
+                    setTimeout(() => canvas.style.transform = 'translateY(0)', 100);
+
+                    playImpact(physicsRes.isSafe);
+                    createParticles(physicsRes.isSafe);
+
+                    // 실패 시 달걀 부서진 모습 그리기
+                    if (!physicsRes.isSafe) {
+                        drawBackground();
+                        // 바닥에 흐른 노른자
+                        ctx.fillStyle = '#facc15';
+                        ctx.beginPath();
+                        ctx.ellipse(canvas.width/2, endY + 10, 30, 6, 0, 0, Math.PI*2);
+                        ctx.fill();
+                        
+                        // 구조물이 납작하게 찌그러진 연출
+                        ctx.save();
+                        ctx.translate(canvas.width/2, endY + 15);
+                        ctx.scale(1, 0.3); // 세로로 압축
+                        ctx.translate(-canvas.width/2, -(endY + 15));
+                        drawEggStructure(canvas.width/2, endY + 15, straws, chops);
+                        ctx.restore();
+                    }
+                }
+            }
+            animFrame = requestAnimationFrame(step);
+        }
+
+        // ==========================================
+        // 8. 초기화 실행
+        // ==========================================
+        window.onload = () => {
+            initCharts();
+            updateSection1();
+            updateSection2();
+            updateSection3();
+            updateSection4();
+            
+            // 캔버스 크기 초기화 지연 (DOM 렌더링 후)
+            setTimeout(() => {
+                resizeCanvas();
+                // 탭 내용 전환 시 캔버스 크기가 0이 되는 문제 방지를 위해,
+                // 다시 보일 때 크기를 맞춰줌.
+                document.querySelectorAll('.tab-btn').forEach(btn => {
+                    btn.addEventListener('click', () => setTimeout(resizeCanvas, 50));
+                });
+            }, 100);
+        };
+    </script>
+</body>
+</html>
