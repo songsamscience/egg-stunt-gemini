@@ -494,7 +494,7 @@
                 <div class="card">
                     <h2>🛠️ 구조물 설계 & 실험</h2>
                     <p style="font-size:0.9rem; margin-bottom:1rem; color:var(--text-muted);">
-                        빨대는 쿠션을 제공(최대 13cm 압축)하지만 질량을 늘리고, 나무젓가락은 질량만 늘립니다. 최적의 조합을 찾으세요!
+                        빨대는 <strong>충격 흡수(쿠션)와 공기저항</strong>을 제공하고, 나무젓가락은 뼈대를 넓혀 <strong>큰 공기저항(낙하산 효과)</strong>을 만듭니다. 하지만 재료가 많아지면 질량도 무거워지므로, 공기저항/쿠션/질량의 최적 비율을 찾아보세요!
                     </p>
                     
                     <div class="control-group">
@@ -507,7 +507,7 @@
 
                     <div class="control-group">
                         <label>
-                            <span>🥤 빨대 개수 (개당 1g, 쿠션효과)</span>
+                            <span>🥤 빨대 개수 (개당 1g, 쿠션/저항 효과)</span>
                             <span class="range-value" id="val-straw">10 개</span>
                         </label>
                         <input type="range" id="slider-straw" min="0" max="100" step="1" value="10">
@@ -515,7 +515,7 @@
 
                     <div class="control-group">
                         <label>
-                            <span>🥢 나무젓가락 개수 (개당 4g, 강체)</span>
+                            <span>🥢 나무젓가락 개수 (개당 4g, 강체/큰 저항)</span>
                             <span class="range-value" id="val-chop">0 개</span>
                         </label>
                         <input type="range" id="slider-chop" min="0" max="30" step="1" value="0">
@@ -525,6 +525,10 @@
                         <div class="stat-box" style="background:#fff;">
                             <div class="stat-label">총 질량 (M)</div>
                             <div class="stat-value" id="out-mass4">70 <span class="stat-unit">g</span></div>
+                        </div>
+                        <div class="stat-box" style="background:#fff;">
+                            <div class="stat-label">충돌 속도 (v)</div>
+                            <div class="stat-value" id="out-vel4">9.9 <span class="stat-unit">m/s</span></div>
                         </div>
                         <div class="stat-box" style="background:#fff;">
                             <div class="stat-label">쿠션 거리 (d)</div>
@@ -602,19 +606,34 @@
             return { p, j, t, v };
         }
 
-        // 구조물 충격력 계산 (일-에너지 정리 기반: Mgh = F * d)
+        // 구조물 충격력 계산 (공기저항 + 쿠션 에너지 보존 적용)
         function calcStructurePhysics(h, straws, chops) {
             const mTotal = M_EGG + (straws * M_STRAW) + (chops * M_CHOP);
             
-            // 쿠션 거리 시뮬레이션: 빨대가 있을 경우 최대 13cm 제공, 없으면 달걀 자체 탄성(약 2mm)
-            // 빨대 개수에 따라 쿠션 효율이 달라진다고 가정 (빨대 5개 이상이어야 13cm 확보 가능)
-            let dActual = straws > 0 ? Math.min(MAX_CUSHION, straws * 0.026) : 0.002; 
+            // 1. 공기저항 면적 (A) 추정: 기본 달걀 면적 + 구조물에 의한 면적 증가
+            // 빨대와 나무젓가락이 많을수록 낙하산처럼 공기저항 단면적이 넓어짐
+            const dragArea = 0.01 + (straws * 0.002) + (chops * 0.005);
             
-            // 예상 평균 충격력: F = (M * g * h) / d
-            const force = (mTotal * G * h) / dActual;
+            // 2. 종단 속도 (Terminal Velocity): v_t = sqrt( (2*m*g) / (rho*C_d*A) )
+            // 단순화를 위해 공기밀도 및 항력계수 상수를 0.6125 로 고정 (0.5 * 1.225 * 1.0)
+            const dragCoeff = 0.6125 * dragArea;
+            const vTerminal = Math.sqrt((mTotal * G) / dragCoeff);
+            
+            // 3. 공기저항을 고려한 실제 충돌 속도 (이차 공기저항 모델의 해석적 해)
+            // v = v_t * sqrt(1 - e^(-2gh / v_t^2))
+            const vImpact = vTerminal * Math.sqrt(1 - Math.exp(-(2 * G * h) / (vTerminal * vTerminal)));
+            
+            // 4. 지면 도달 시의 운동 에너지
+            const keImpact = 0.5 * mTotal * (vImpact * vImpact);
+            
+            // 5. 쿠션 거리 시뮬레이션: 빨대가 있을 경우 충격 흡수 구간 연장 (최대 15cm)
+            const dActual = 0.002 + Math.min(0.15, straws * 0.005); 
+            
+            // 6. 예상 평균 충격력: F = KE / d (일-에너지 정리)
+            const force = keImpact / dActual;
             const isSafe = force <= F_LIMIT;
             
-            return { mTotal, dActual, force, isSafe };
+            return { mTotal, vImpact, dActual, force, isSafe };
         }
 
         // ==========================================
@@ -784,6 +803,7 @@
             const res = calcStructurePhysics(h, straws, chops);
             
             document.getElementById('out-mass4').innerText = (res.mTotal * 1000).toFixed(0); // g
+            document.getElementById('out-vel4').innerText = res.vImpact.toFixed(1); // m/s (새로 추가된 충돌 속도)
             document.getElementById('out-dist4').innerText = (res.dActual * 100).toFixed(1); // cm
             document.getElementById('out-force4').innerText = res.force.toFixed(1);
 
@@ -1091,9 +1111,13 @@
             const chops = parseInt(document.getElementById('slider-chop').value);
             
             const physicsRes = calcStructurePhysics(h, straws, chops);
-            const fallTime = Math.sqrt(2 * h / G); // 실제 물리 낙하 시간
             
-            // 애니메이션 시간 스케일링 (너무 빠르거나 느리지 않게 조절)
+            // 공기저항으로 인해 속도가 느려지면 체공 시간도 길어짐 (비례식으로 애니메이션 시간 보정)
+            const idealV = Math.sqrt(2 * G * h);
+            const timeScale = idealV / physicsRes.vImpact;
+            const fallTime = Math.sqrt(2 * h / G) * timeScale; 
+            
+            // 애니메이션 시간 스케일링
             const animDuration = Math.max(0.8, fallTime * 0.5) * 1000; // ms
             
             playNoiseFall(animDuration / 1000);
