@@ -494,7 +494,8 @@
                 <div class="card">
                     <h2>🛠️ 구조물 설계 & 실험</h2>
                     <p style="font-size:0.9rem; margin-bottom:1rem; color:var(--text-muted);">
-                        빨대는 <strong>충격 흡수(쿠션)와 공기저항</strong>을 제공하고, 나무젓가락은 뼈대를 넓혀 <strong>큰 공기저항(낙하산 효과)</strong>을 만듭니다. 하지만 재료가 많아지면 질량도 무거워지므로, 공기저항/쿠션/질량의 최적 비율을 찾아보세요!
+                        빨대는 속이 비고 부피가 커서 <strong>공기저항(낙하산 효과)</strong>과 <strong>충격 흡수(쿠션)</strong> 역할을 합니다.<br>
+                        반면, 나무젓가락은 무겁고 단단해서 <strong>전체 질량(파괴력)을 크게 증가</strong>시키며 많이 사용할 경우 <strong>구조물이 딱딱해져 빨대의 쿠션 효과를 방해</strong>합니다. 물리 법칙을 고려해 최적의 조합을 설계하세요!
                     </p>
                     
                     <div class="control-group">
@@ -507,7 +508,7 @@
 
                     <div class="control-group">
                         <label>
-                            <span>🥤 빨대 개수 (개당 1g, 쿠션/저항 효과)</span>
+                            <span>🥤 빨대 개수 (개당 1g, 쿠션/저항 효과 증가)</span>
                             <span class="range-value" id="val-straw">10 개</span>
                         </label>
                         <input type="range" id="slider-straw" min="0" max="100" step="1" value="10">
@@ -515,7 +516,7 @@
 
                     <div class="control-group">
                         <label>
-                            <span>🥢 나무젓가락 개수 (개당 4g, 강체/큰 저항)</span>
+                            <span>🥢 나무젓가락 개수 (개당 4g, 강체 질량 증가/쿠션 방해)</span>
                             <span class="range-value" id="val-chop">0 개</span>
                         </label>
                         <input type="range" id="slider-chop" min="0" max="30" step="1" value="0">
@@ -567,7 +568,6 @@
         const F_LIMIT = 25;      // 달걀 파괴 한계력 (N)
         const M_STRAW = 0.001;   // 빨대 1개 질량 (kg) = 1g
         const M_CHOP = 0.004;    // 젓가락 1개 질량 (kg) = 4g
-        const MAX_CUSHION = 0.13;// 빨대 최대 압축 거리 (m) = 13cm
 
         // ==========================================
         // 2. 탭 전환 로직
@@ -606,28 +606,40 @@
             return { p, j, t, v };
         }
 
-        // 구조물 충격력 계산 (공기저항 + 쿠션 에너지 보존 적용)
+        // 구조물 충격력 계산 (개선된 정밀 물리 모델 적용)
         function calcStructurePhysics(h, straws, chops) {
             const mTotal = M_EGG + (straws * M_STRAW) + (chops * M_CHOP);
             
-            // 1. 공기저항 면적 (A) 추정: 기본 달걀 면적 + 구조물에 의한 면적 증가
-            // 빨대와 나무젓가락이 많을수록 낙하산처럼 공기저항 단면적이 넓어짐
-            const dragArea = 0.01 + (straws * 0.002) + (chops * 0.005);
+            // 1. 공기저항 단면적 (A) 추정 (단위: m^2)
+            // 빨대는 가볍고 부피가 커서 단면적이 많이 늘어나지만 (0.0025 증가)
+            // 나무젓가락은 얇고 밀도가 높아 질량 증가 대비 단면적 증가가 미미함 (0.0005 증가)
+            const dragArea = 0.005 + (straws * 0.0025) + (chops * 0.0005);
             
             // 2. 종단 속도 (Terminal Velocity): v_t = sqrt( (2*m*g) / (rho*C_d*A) )
-            // 단순화를 위해 공기밀도 및 항력계수 상수를 0.6125 로 고정 (0.5 * 1.225 * 1.0)
             const dragCoeff = 0.6125 * dragArea;
             const vTerminal = Math.sqrt((mTotal * G) / dragCoeff);
             
-            // 3. 공기저항을 고려한 실제 충돌 속도 (이차 공기저항 모델의 해석적 해)
-            // v = v_t * sqrt(1 - e^(-2gh / v_t^2))
+            // 3. 공기저항을 고려한 실제 충돌 속도 (이차 공기저항 해석 모델)
             const vImpact = vTerminal * Math.sqrt(1 - Math.exp(-(2 * G * h) / (vTerminal * vTerminal)));
             
             // 4. 지면 도달 시의 운동 에너지
             const keImpact = 0.5 * mTotal * (vImpact * vImpact);
             
-            // 5. 쿠션 거리 시뮬레이션: 빨대가 있을 경우 충격 흡수 구간 연장 (최대 15cm)
-            const dActual = 0.002 + Math.min(0.15, straws * 0.005); 
+            // 5. 쿠션 거리 시뮬레이션 (d)
+            let dActual = 0.002; // 달걀 자체의 미세한 탄성 거리
+            
+            // 빨대가 2개 이하일 때는 달걀을 제대로 감싸지 못해 쿠션 역할을 못함
+            if (straws > 2) {
+                // 빨대 개수에 비례해 찌그러질 수 있는 거리(쿠션) 추가 (최대 15cm)
+                dActual += Math.min(0.15, (straws - 2) * 0.005); 
+            }
+            
+            // 나무젓가락 페널티: 강체인 젓가락이 많아질수록 구조물 전체가 딱딱해져 빨대의 쿠션 효과를 방해함
+            if (chops > 0) {
+                // 젓가락 1개당 쿠션 성능 4% 감소 (최대 50%까지 감소)
+                const stiffnessPenalty = Math.max(0.5, 1 - (chops * 0.04));
+                dActual = dActual * stiffnessPenalty;
+            }
             
             // 6. 예상 평균 충격력: F = KE / d (일-에너지 정리)
             const force = keImpact / dActual;
